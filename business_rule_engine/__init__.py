@@ -65,23 +65,19 @@ class RuleParser():
         return formulas.Parser().ast(condition)[1].compile()  # type: ignore
 
     @staticmethod
-    def _get_params(params: Dict[Text, Any], condition_compiled: Any, ignore_missing_arguments: bool = False) -> Dict[Text, Any]:
+    def _get_params(params: Dict[Text, Any], condition_compiled: Any) -> Dict[Text, Any]:
         params_dict: Dict[Text, Any] = {k.upper(): v for k, v in params.items()}
         param_names = set(params_dict.keys())
 
         condition_args: List[Text] = list(condition_compiled.inputs.keys())
 
         if not set(condition_args).issubset(param_names):
-            if ignore_missing_arguments:
-                for k in set(condition_args).difference(param_names):
-                    params_dict[k] = None
-            else:
-                raise ValueError("Missing arguments {}".format(set(condition_args).difference(param_names)))
+            raise ValueError("Missing arguments {}".format(set(condition_args).difference(param_names)))
 
         params_condition = {k: v for k, v in params_dict.items() if k in condition_args}
         return params_condition
 
-    def execute(self, params: Dict[Text, Any], stop_on_first_trigger: bool = True, ignore_missing_arguments: bool = False) -> bool:
+    def execute(self, params: Dict[Text, Any], stop_on_first_trigger: bool = True, bypass_missing_arguments: bool = False) -> bool:
         rule_was_triggered = False
         for rule_name, rule in self.rules.items():
             logging.debug("Rule name: %s", rule_name)
@@ -89,8 +85,15 @@ class RuleParser():
             logging.debug("Action: %s", "".join(rule['action']))
 
             condition_compiled = self._compile_condition(rule['condition'])
-            params_condition = self._get_params(params, condition_compiled, ignore_missing_arguments)
-            rvalue_conditions = condition_compiled(**params_condition).tolist()
+            try:
+                params_condition = self._get_params(params, condition_compiled)
+                rvalue_conditions = condition_compiled(**params_condition).tolist()
+            except ValueError as e:
+                if bypass_missing_arguments:
+                    rvalue_conditions = False
+                else:
+                    raise ValueError(e)
+
             if self.codition_requires_bool and not isinstance(rvalue_conditions, bool):
                 raise ValueError('rule: {} - condition does not return a boolean value!'.format(rule_name))
 
