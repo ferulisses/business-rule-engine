@@ -72,13 +72,13 @@ class RuleParser():
         condition_args: List[Text] = list(condition_compiled.inputs.keys())
 
         if not set(condition_args).issubset(param_names):
-            if not ignore_missing_arguments:
+            if ignore_missing_arguments:
+                for k in set(condition_args).difference(param_names):
+                    params_dict[k] = None
+            else:
                 raise ValueError("Missing arguments {}".format(set(condition_args).difference(param_names)))
 
         params_condition = {k: v for k, v in params_dict.items() if k in condition_args}
-        if ignore_missing_arguments:
-            for k in set(condition_args).difference(param_names):
-                params_condition[k] = None
         return params_condition
 
     def execute(self, params: Dict[Text, Any], stop_on_first_trigger: bool = True, ignore_missing_arguments: bool = False) -> bool:
